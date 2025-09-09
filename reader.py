@@ -199,6 +199,7 @@ class ACR122U(Reader):
                 raise CardConnectionException(f"Failed to read {length_in_bytes} bytes at page {page}. SW: {hex(sw1)} {hex(sw2)}")
             data.extend(new_data)
             page += pages_per_read
+        self._log(f"Read data: {data}")
         return bytes(data)
 
     def _write_card_bytes(self, card: CardConnection, page: int, message: bytes):
@@ -209,8 +210,9 @@ class ACR122U(Reader):
             content = message[byte_index : byte_index + bytes_per_write]
             current_page = page + (byte_index // bytes_per_write)
             apdu = self.write_apdu + [current_page, bytes_per_write] + list(content)
-            self._log("Sending APDU for writing {bytes_per_write} bytes at page {current_page}")
+            self._log(f"Sending APDU for writing {bytes_per_write} bytes at page {current_page}")
             _, sw1, sw2 = card.transmit(apdu)
 
             if (sw1, sw2) != self.success_sw:
                 raise CardConnectionException(f"Failed to write {bytes_per_write} bytes at page {current_page}. SW: {hex(sw1)} {hex(sw2)}")
+        self._log(f"Data written: {message}")
