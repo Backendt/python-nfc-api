@@ -100,11 +100,12 @@ class Reader:
                     pages_data = self._read_card_bytes(card, page_index, header_length + record_length)
                     content.extend(pages_data)
 
+                    self._log(f"Raw data: {bytes(content)}")
                     return bytes(content[record_start : record_end])
 
     def write_card(self, card: CardConnection, mime_type: str, content: bytes):
         print(f"Writing to card: {mime_type} - {content}")
-        record = Record(mime_type, '1', content)
+        record = Record(mime_type, '', content)
         encoder = message_encoder()
         encoder.send(None) # Don't ask any questions
         encoder.send(record)
@@ -120,6 +121,7 @@ class Reader:
         # Fill the unused bytes in page
         bytes_in_last_page = len(tlv_message) % self.tag.bytes_per_page
         if bytes_in_last_page != 0: # 0 if the page doesn't have empty space
+            self._log(f"Adding {self.tag.bytes_per_page - bytes_in_last_page} bytes of padding")
             padding = bytes(self.tag.bytes_per_page - bytes_in_last_page)
             tlv_message += padding
 
@@ -199,7 +201,6 @@ class ACR122U(Reader):
                 raise CardConnectionException(f"Failed to read {length_in_bytes} bytes at page {page}. SW: {hex(sw1)} {hex(sw2)}")
             data.extend(new_data)
             page += pages_per_read
-        self._log(f"Read data: {data}")
         return bytes(data)
 
     def _write_card_bytes(self, card: CardConnection, page: int, message: bytes):
@@ -215,4 +216,4 @@ class ACR122U(Reader):
 
             if (sw1, sw2) != self.success_sw:
                 raise CardConnectionException(f"Failed to write {bytes_per_write} bytes at page {current_page}. SW: {hex(sw1)} {hex(sw2)}")
-        self._log(f"Data written: {message}")
+        self._log(f"Data written: {bytes(message)}")

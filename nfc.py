@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 from ndef import message_decoder, Record
 from smartcard.Exceptions import CardRequestException
 
-from tag import NTAG216
+from tag import NTAG215
 from reader import Reader, ACR122U
 
 class Contact:
@@ -39,14 +39,13 @@ Company: {self.company}
             raise ValueError("Company is required.")
 
     def as_vcard(self) -> str:
-        return f"""BEGING:VCARD
+        return f"""BEGIN:VCARD
 VERSION:3.0
 FN:{self.name}
 ORG:{self.company}
 TEL:{self.phone}
 EMAIL:{self.email}
-END:VCARD
-"""
+END:VCARD"""
 
     @staticmethod
     def from_vcard(vcard: str):
@@ -118,7 +117,7 @@ def _get_args():
 
 def _main():
     args = _get_args()
-    tag = ACR122U(NTAG216, args.verbose, args.timeout)
+    tag = ACR122U(NTAG215, args.verbose, args.timeout)
     reader = VCardAPI(tag, args.verbose)
     if args.write:
         contact = Contact.create_interactively()
