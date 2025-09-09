@@ -1,4 +1,5 @@
 from math import ceil
+from ndef import message_encoder, Record
 from smartcard.ATR import ATR
 from smartcard.CardConnection import CardConnection
 from smartcard.CardRequest import CardRequest
@@ -103,7 +104,33 @@ class Reader:
 
     def write_card(self, card: CardConnection, mime_type: str, content: bytes):
         print(f"Writing to card: {mime_type} - {content}")
-        # TODO
+        record = Record(mime_type, '1', content)
+        encoder = message_encoder()
+        encoder.send(None) # Don't ask any questions
+        encoder.send(record)
+        message = encoder.send(None) # Really, please don't
+        if not message or not isinstance(message, bytes):
+            raise ValueError("Could not encode NDEF message.", message)
+
+        tlv_start = 0x03
+        tlv_end = 0xFE
+        tlv_header = bytes([tlv_start, len(message)])
+        tlv_message = tlv_header + message + bytes(tlv_end)
+
+        # Fill the unused bytes in page
+        bytes_in_last_page = len(tlv_message) % self.tag.bytes_per_page
+        if bytes_in_last_page != 0: # 0 if the page doesn't have empty space
+            padding = bytes(self.tag.bytes_per_page - bytes_in_last_page)
+            tlv_message += padding
+
+        message_size = len(tlv_message)
+        max_page_amount = self.tag.memory_page_max - self.tag.memory_page_start
+        max_bytes_in_memory = max_page_amount * self.tag.bytes_per_page
+        if message_size > max_bytes_in_memory:
+            raise ValueError(f"NDEF Message is too large for the given tag. The max size is {max_bytes_in_memory} bytes and the current message is {message_size} bytes")
+
+        self._write_card_bytes(card, self.tag.memory_page_start, tlv_message)
+        print("Card written.")
 
     def wait_for_card(self, callback: Callable, *callback_args):
         print("Waiting for card...")
@@ -130,10 +157,14 @@ class Reader:
     def _read_card_bytes(self, card: CardConnection, page: int, length_in_bytes: int) -> bytes:
         raise NotImplementedError()
 
+    def _write_card_bytes(self, card: CardConnection, page: int, message: bytes):
+        raise NotImplementedError()
+
 class ACR122U(Reader):
 
     success_sw: tuple[int, int] = (0x90, 0x00)
     read_apdu: list[int] = [0xFF, 0xB0, 0x00] # + [page, amount_of_bytes_to_read]
+    write_apdu: list[int] = [0xFF, 0xD6, 0x00] # + [page, amount_of_bytes_to_write] + content
 
     def __init__(self, tag: Tag, verbose: bool = False, timeout_sec: int = 3600):
         max_bytes_per_read = 16
@@ -169,3 +200,17 @@ class ACR122U(Reader):
             data.extend(new_data)
             page += pages_per_read
         return bytes(data)
+
+    def _write_card_bytes(self, card: CardConnection, page: int, message: bytes):
+        message_size = len(message)
+        bytes_per_write = self.tag.bytes_per_page
+        self._log(f"Writing {message_size} bytes to page {page}...")
+        for byte_index in range(0, message_size, bytes_per_write):
+            content = message[byte_index : byte_index + bytes_per_write]
+            current_page = page + (byte_index // bytes_per_write)
+            apdu = self.write_apdu + [current_page, bytes_per_write] + list(content)
+            self._log("Sending APDU for writing {bytes_per_write} bytes at page {current_page}")
+            _, sw1, sw2 = card.transmit(apdu)
+
+            if (sw1, sw2) != self.success_sw:
+                raise CardConnectionException(f"Failed to write {bytes_per_write} bytes at page {current_page}. SW: {hex(sw1)} {hex(sw2)}")
