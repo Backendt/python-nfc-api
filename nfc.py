@@ -45,7 +45,7 @@ FN:{self.name}
 ORG:{self.company}
 TEL:{self.phone}
 EMAIL:{self.email}
-ENV:VCARD
+END:VCARD
 """
 
     @staticmethod
