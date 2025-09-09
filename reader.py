@@ -115,7 +115,7 @@ class Reader:
         tlv_start = 0x03
         tlv_end = 0xFE
         tlv_header = bytes([tlv_start, len(message)])
-        tlv_message = tlv_header + message + bytes(tlv_end)
+        tlv_message = tlv_header + message + bytes([tlv_end])
 
         # Fill the unused bytes in page
         bytes_in_last_page = len(tlv_message) % self.tag.bytes_per_page
