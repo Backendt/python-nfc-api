@@ -40,7 +40,7 @@ Company: {self.company}
 
     def as_vcard(self) -> str:
         return f"""BEGIN:VCARD
-VERSION:3.0
+VERSION:2.1
 FN:{self.name}
 ORG:{self.company}
 TEL:{self.phone}
