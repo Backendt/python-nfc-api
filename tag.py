@@ -1,6 +1,7 @@
 from smartcard.CardType import ATRCardType, CardType
 from typing import Final
 
+
 class Tag:
     atr: CardType
     bytes_per_page: int
@@ -13,5 +14,6 @@ class Tag:
         self.memory_page_start = memory_page_start
         self.memory_page_max = memory_page_max
 
-# The values comes from: https://www.nxp.com/docs/en/data-sheet/NTAG213_215_216.pdf 
+
+# The values comes from: https://www.nxp.com/docs/en/data-sheet/NTAG213_215_216.pdf
 NTAG215: Final[Tag] = Tag([59, 143, 128, 1, 128, 79, 12, 160, 0, 0, 3, 6, 3, 0, 3, 0, 0, 0, 0, 104], 4, 4, 126)
