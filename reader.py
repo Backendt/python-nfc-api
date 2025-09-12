@@ -9,6 +9,7 @@ from typing import Callable
 
 from tag import Tag
 
+
 class Reader:
     verbose: bool = False
     device: CardRequest
@@ -70,7 +71,7 @@ class Reader:
             for current_byte_index in range(current_byte_index, content_length):
                 current_byte = content[current_byte_index]
 
-                if current_byte == 0x00: # Skip null bytes
+                if current_byte == 0x00:                                    # Skip null bytes
                     current_byte_index += 1
                     continue
 
@@ -82,7 +83,7 @@ class Reader:
                 if current_byte == ndef_tlv_start:
                     self._log(f"Found NDEF TLV at byte {current_byte_index}")
                     contains_header = len(content) >= current_byte_index + max_header_length
-                    if not contains_header: # If we are getting too close to the end of the buffer, load more data
+                    if not contains_header:                                 # If we are getting too close to the end of the buffer, load more data
                         self._log("Current buffer does not contain header. Reading more pages...")
                         pages_data = self._read_card_bytes(card, page_index, read_length)
                         page_index += pages_per_read
@@ -90,8 +91,8 @@ class Reader:
 
                     record_length = content[current_byte_index + 1]
                     if record_length == 0xFF:
-                        header_length = 4 
-                        record_length = content[current_byte_index + 2] << 8 | content[current_byte_index + 3] # Forgive me
+                        header_length = 4
+                        record_length = content[current_byte_index + 2] << 8 | content[current_byte_index + 3]  # Forgive me
 
                     record_start = current_byte_index + header_length
                     record_end = record_start + record_length
@@ -101,15 +102,15 @@ class Reader:
                     content.extend(pages_data)
 
                     self._log(f"Raw data: {bytes(content)}")
-                    return bytes(content[record_start : record_end])
+                    return bytes(content[record_start:record_end])
 
     def write_card(self, card: CardConnection, mime_type: str, content: bytes):
         print(f"Writing to card: {mime_type} - {content}")
         record = Record(mime_type, '', content)
         encoder = message_encoder()
-        encoder.send(None) # Don't ask any questions
+        encoder.send(None)                  # Don't ask any questions
         encoder.send(record)
-        message = encoder.send(None) # Really, please don't
+        message = encoder.send(None)        # Really, please don't
         if not message or not isinstance(message, bytes):
             raise ValueError("Could not encode NDEF message.", message)
 
@@ -120,7 +121,7 @@ class Reader:
 
         # Fill the unused bytes in page
         bytes_in_last_page = len(tlv_message) % self.tag.bytes_per_page
-        if bytes_in_last_page != 0: # 0 if the page doesn't have empty space
+        if bytes_in_last_page != 0:         # 0 if the page doesn't have empty space
             self._log(f"Adding {self.tag.bytes_per_page - bytes_in_last_page} bytes of padding")
             padding = bytes(self.tag.bytes_per_page - bytes_in_last_page)
             tlv_message += padding
@@ -141,11 +142,11 @@ class Reader:
         except CardRequestTimeoutException:
             print("Card wait timed out.")
             return None
-        
+
         if not service:
             print("No card found.")
             return None
-        
+
         connection = service.connection
         connection.connect()
         self._log_card_info(connection)
@@ -162,18 +163,19 @@ class Reader:
     def _write_card_bytes(self, card: CardConnection, page: int, message: bytes):
         raise NotImplementedError()
 
+
 class ACR122U(Reader):
 
     success_sw: tuple[int, int] = (0x90, 0x00)
-    read_apdu: list[int] = [0xFF, 0xB0, 0x00] # + [page, amount_of_bytes_to_read]
-    write_apdu: list[int] = [0xFF, 0xD6, 0x00] # + [page, amount_of_bytes_to_write] + content
+    read_apdu: list[int] = [0xFF, 0xB0, 0x00]       # + [page, amount_of_bytes_to_read]
+    write_apdu: list[int] = [0xFF, 0xD6, 0x00]      # + [page, amount_of_bytes_to_write] + content
 
     def __init__(self, tag: Tag, verbose: bool = False, timeout_sec: int = 3600):
         max_bytes_per_read = 16
         super().__init__(tag, max_bytes_per_read, verbose, timeout_sec)
 
     def _read_card_bytes(self, card: CardConnection, page: int, length_in_bytes: int) -> bytes:
-        read_amount = ceil(length_in_bytes / self.max_bytes_per_read) # The number of reads APDU that needs to be done
+        read_amount = ceil(length_in_bytes / self.max_bytes_per_read)       # The number of reads APDU that needs to be done
         length_in_pages = ceil(length_in_bytes / self.tag.bytes_per_page)
         end_page = page + length_in_pages
         if end_page > self.tag.memory_page_max:
@@ -208,7 +210,7 @@ class ACR122U(Reader):
         bytes_per_write = self.tag.bytes_per_page
         self._log(f"Writing {message_size} bytes to page {page}...")
         for byte_index in range(0, message_size, bytes_per_write):
-            content = message[byte_index : byte_index + bytes_per_write]
+            content = message[byte_index:byte_index + bytes_per_write]
             current_page = page + (byte_index // bytes_per_write)
             apdu = self.write_apdu + [current_page, bytes_per_write] + list(content)
             self._log(f"Sending APDU for writing {bytes_per_write} bytes at page {current_page}")

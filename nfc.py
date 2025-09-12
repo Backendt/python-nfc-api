@@ -7,6 +7,7 @@ from smartcard.Exceptions import CardRequestException
 from tag import NTAG215
 from reader import Reader, ACR122U
 
+
 class Contact:
     full_name: str
     name: str
@@ -117,6 +118,7 @@ class VCardAPI:
         self.reader.wait_for_card(self.reader.write_card, "text/x-vcard", vcard.encode("utf-8"))
         self._log("Contact written")
 
+
 def _get_args():
     parser = ArgumentParser()
     parser.add_argument("-w", "--write", required=False, action="store_true")
@@ -124,6 +126,7 @@ def _get_args():
     parser.add_argument("-t", "--timeout", required=False, type=int, default=10, help="The maximum time in seconds to wait for a card")
 
     return parser.parse_args()
+
 
 def _main():
     args = _get_args()
@@ -135,6 +138,7 @@ def _main():
     else:
         contact = reader.read_contact()
         print(contact)
+
 
 if __name__ == "__main__":
     _main()
