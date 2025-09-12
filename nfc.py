@@ -8,12 +8,14 @@ from tag import NTAG215
 from reader import Reader, ACR122U
 
 class Contact:
+    full_name: str
     name: str
     phone: str
     email: str
     company: str
 
-    def __init__(self, name: str, phone: str, email: str, company: str):
+    def __init__(self, full_name: str, name: str, phone: str, email: str, company: str):
+        self.full_name = full_name.strip()
         self.name = name.strip()
         self.phone = phone.strip()
         self.email = email.strip()
@@ -21,6 +23,7 @@ class Contact:
 
     def __str__(self) -> str:
         return f"""
+Display Name: {self.full_name}
 Name: {self.name}
 Phone: {self.phone}
 Email: {self.email}
@@ -28,8 +31,10 @@ Company: {self.company}
 """
 
     def check(self):
-        if len(self.name.strip()) < 3:
-            raise ValueError("The name is too short.")
+        if len(self.full_name.strip()) < 3:
+            raise ValueError("The full name is too short.")
+        if ";" not in self.name:
+            raise ValueError("The name format should be: Family_Name;Given_Name;Middle_Names;Prefixes;Suffixes")
         phone_length = len(self.phone.strip())
         if phone_length != 10 or not (phone_length == 13 and self.phone.startswith('+')):
             raise ValueError("Invalid phone number.")
@@ -41,7 +46,8 @@ Company: {self.company}
     def as_vcard(self) -> str:
         return f"""BEGIN:VCARD
 VERSION:3.0
-FN:{self.name}
+FN:{self.full_name}
+N:{self.name}
 ORG:{self.company}
 TEL:{self.phone}
 EMAIL:{self.email}
@@ -49,11 +55,13 @@ END:VCARD"""
 
     @staticmethod
     def from_vcard(vcard: str):
-        contact = Contact("Unknown", "Unknown", "0000000000", "Unknown")
+        contact = Contact("Unknown", "Unknown", "Unknown", "0000000000", "Unknown")
         for line in vcard.splitlines():
             key, value = line.split(":", 1)
             match key:
                 case "FN":
+                    contact.full_name = value
+                case "N":
                     contact.name = value
                 case "ORG":
                     contact.company = value
@@ -65,12 +73,14 @@ END:VCARD"""
 
     @staticmethod
     def create_interactively():
-        name = input("Enter full name: ")
+        full_name = input("Enter display name: ")
+        name = input("Enter name (Format: Name;FirstName;other_names;Prefixes;suffixes): ")
         phone = input("Enter phone: ")
         email = input("Enter email: ")
         company = input("Enter company: ")
-        return Contact(name, phone, email, company)
-        
+        return Contact(full_name, name, phone, email, company)
+
+
 class VCardAPI:
     verbose: bool
     reader: Reader
