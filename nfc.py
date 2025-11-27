@@ -45,14 +45,14 @@ Company: {self.company}
             raise ValueError("Company is required.")
 
     def as_vcard(self) -> str:
-        return f"""BEGIN:VCARD
-VERSION:3.0
-FN:{self.full_name}
-N:{self.name}
-ORG:{self.company}
-TEL:{self.phone}
-EMAIL:{self.email}
-END:VCARD"""
+        return ("BEGIN:VCARD\n"
+                "VERSION:3.0\n"
+                f"FN:{self.full_name}\n"
+                f"N:{self.name}\n"
+                f"ORG:{self.company}\n"
+                f"TEL:{self.phone}\n"
+                f"EMAIL:{self.email}\n"
+                "END:VCARD")
 
     @staticmethod
     def from_vcard(vcard: str):
@@ -94,7 +94,7 @@ class VCardAPI:
         if self.verbose:
             print(message)
 
-    def read_contact(self) -> Contact:
+    def read_string(self) -> str:
         card_bytes = self.reader.wait_for_card(self.reader.read_card)
         if not card_bytes:
             raise ValueError("Could not read contact from card")
@@ -108,16 +108,22 @@ class VCardAPI:
             if record_type not in ["text/vcard", "text/x-vcard"]:
                 self._log(f"Ignoring record of type: {record_type}")
                 continue
-            vcard = record.data.decode("utf-8", errors="replace")
-            return Contact.from_vcard(vcard)
+            return record.data.decode("utf-8", errors="replace")
         raise CardRequestException("The card does not contain any vcard.")
 
-    def write_contact(self, contact: Contact):
-        vcard = contact.as_vcard()
-        self._log("Writing contact..")
-        self.reader.wait_for_card(self.reader.write_card, "text/x-vcard", vcard.encode("utf-8"))
-        self._log("Contact written")
 
+    def read_contact(self) -> Contact:
+        vcard = self.read_string()
+        return Contact.from_vcard(vcard)
+
+    def write_contact(self, contact: Contact, url: str):
+        vcard = contact.as_vcard()
+        self.write_card(vcard, url)
+        self._log("Writing contact..")
+
+    def write_card(self, content: str, url: str):
+        self.reader.wait_for_card(self.reader.write_card, "text/x-vcard", content.encode("utf-8"), url.encode("utf-8"))
+        self._log("Write operation finished.")
 
 def _get_args():
     parser = ArgumentParser()
@@ -134,7 +140,7 @@ def _main():
     reader = VCardAPI(tag, args.verbose)
     if args.write:
         contact = Contact.create_interactively()
-        reader.write_contact(contact)
+        reader.write_contact(contact, "")
     else:
         contact = reader.read_contact()
         print(contact)

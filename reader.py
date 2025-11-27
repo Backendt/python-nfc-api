@@ -1,5 +1,5 @@
 from math import ceil
-from ndef import message_encoder, Record
+from ndef import message_encoder, Record, UriRecord
 from smartcard.ATR import ATR
 from smartcard.CardConnection import CardConnection
 from smartcard.CardRequest import CardRequest
@@ -92,7 +92,10 @@ class Reader:
                     record_length = content[current_byte_index + 1]
                     if record_length == 0xFF:
                         header_length = 4
-                        record_length = content[current_byte_index + 2] << 8 | content[current_byte_index + 3]  # Forgive me
+                        length_multiplicator = content[current_byte_index + 2]
+                        length_add = content[current_byte_index + 3]
+                        record_length =  length_multiplicator << 8 | length_add
+                    self._log(f"Record is set to be {record_length}")
 
                     record_start = current_byte_index + header_length
                     record_end = record_start + record_length
@@ -104,19 +107,30 @@ class Reader:
                     self._log(f"Raw data: {bytes(content)}")
                     return bytes(content[record_start:record_end])
 
-    def write_card(self, card: CardConnection, mime_type: str, content: bytes):
-        print(f"Writing to card: {mime_type} - {content}")
-        record = Record(mime_type, '', content)
-        encoder = message_encoder()
-        encoder.send(None)                  # Don't ask any questions
-        encoder.send(record)
-        message = encoder.send(None)        # Really, please don't
+    def write_card(self, card: CardConnection, mime_type: str, content: bytes, url: str):
+        self._log(f"Writing to card: {mime_type} - {content}")
+        vcard_record = Record(mime_type, '1', content)
+        url_record = UriRecord(url)
+        records = message_encoder([vcard_record, url_record])
+        message = b''.join(records)
         if not message or not isinstance(message, bytes):
             raise ValueError("Could not encode NDEF message.", message)
 
         tlv_start = 0x03
         tlv_end = 0xFE
-        tlv_header = bytes([tlv_start, len(message)])
+        tlv_length = len(message)
+
+        length_header = [tlv_length]
+        if tlv_length == 0xFF:
+            length_header = [0xFF, 0x0, 0xFF]
+        elif tlv_length >= 0xFF:
+            multiplicator = tlv_length // 0xFF
+            add = max((tlv_length % 0xFF) - 1, 0)
+            length_header = [0xFF, multiplicator, add]
+        self._log(f"TLV magic length: {length_header}")
+        self._log(f"Full length: {len(message)}")
+
+        tlv_header = bytes([tlv_start] + length_header)
         tlv_message = tlv_header + message + bytes([tlv_end])
 
         # Fill the unused bytes in page
@@ -129,6 +143,7 @@ class Reader:
         message_size = len(tlv_message)
         max_page_amount = self.tag.memory_page_max - self.tag.memory_page_start
         max_bytes_in_memory = max_page_amount * self.tag.bytes_per_page
+        self._log(f"This tag has a maximum memory of {max_bytes_in_memory} bytes")
         if message_size > max_bytes_in_memory:
             raise ValueError(f"NDEF Message is too large for the given tag. The max size is {max_bytes_in_memory} bytes and the current message is {message_size} bytes")
 
